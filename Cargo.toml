@@ -1,0 +1,35 @@
+[package]
+name = "grpc-calculator"
+version = "0.1.0"
+edition = "2021"
+authors = ["mxxntype <59417007+mxxntype@users.noreply.github.com>"]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+enum_glob_use = "deny"
+pedantic = "deny"
+nursery = "deny"
+complexity = "deny"
+perf = "deny"
+
+[dependencies]
+color-eyre = "0.6.2"
+tonic = "0.11"
+tokio = { version = "1", features = ["full"] }
+tonic-reflection = "0.11"
+tonic-web = "0.11"
+tower-http = "0.4"
+prost = "0.12.3"
+
+[build-dependencies]
+tonic-build = "0.11"
+
+[[bin]]
+name = "server"
+path = "src/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
