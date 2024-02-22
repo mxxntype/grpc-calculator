@@ -1,12 +1,15 @@
 use color_eyre::eyre::Result;
 use proto::admin_server::{Admin, AdminServer};
 use proto::calculator_server::{Calculator, CalculatorServer};
+use proto::{CalculationRequest, CalculationResponse, CountRequest, CountResponse};
+use tonic::metadata::MetadataValue;
 use tonic::transport::Server;
+use tonic::{Request, Response, Status};
 
 mod proto {
     tonic::include_proto!("calculator");
 
-    pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
+    pub const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("calculator_descriptor");
 }
 
@@ -28,36 +31,33 @@ impl CalculatorService {
 impl Calculator for CalculatorService {
     async fn add(
         &self,
-        request: tonic::Request<proto::CalculationRequest>,
-    ) -> Result<tonic::Response<proto::CalculationResponse>, tonic::Status> {
+        request: Request<CalculationRequest>,
+    ) -> Result<Response<CalculationResponse>, tonic::Status> {
         self.increment_counter().await;
 
         let input = request.get_ref();
-
-        let response = proto::CalculationResponse {
+        let response = CalculationResponse {
             result: input.a + input.b,
         };
 
-        Ok(tonic::Response::new(response))
+        Ok(Response::new(response))
     }
 
     async fn divide(
         &self,
-        request: tonic::Request<proto::CalculationRequest>,
-    ) -> Result<tonic::Response<proto::CalculationResponse>, tonic::Status> {
+        request: Request<CalculationRequest>,
+    ) -> Result<Response<CalculationResponse>, tonic::Status> {
         self.increment_counter().await;
 
         let input = request.get_ref();
-
-        if input.b == 0 {
-            return Err(tonic::Status::invalid_argument("cannot divide by zero"));
-        }
-
-        let response = proto::CalculationResponse {
-            result: input.a / input.b,
+        let response = CalculationResponse {
+            result: input
+                .a
+                .checked_div(input.b)
+                .ok_or_else(|| tonic::Status::invalid_argument("Cannot divide by 0"))?,
         };
 
-        Ok(tonic::Response::new(response))
+        Ok(Response::new(response))
     }
 }
 
@@ -70,21 +70,18 @@ struct AdminService {
 impl Admin for AdminService {
     async fn get_request_count(
         &self,
-        _request: tonic::Request<proto::CountRequest>,
-    ) -> Result<tonic::Response<proto::CountResponse>, tonic::Status> {
-        let count = self.state.read().await;
-        let response = proto::CountResponse { count: *count };
+        _request: Request<CountRequest>,
+    ) -> Result<Response<CountResponse>, tonic::Status> {
+        let response = CountResponse {
+            count: *self.state.read().await,
+        };
 
-        Ok(tonic::Response::new(response))
+        Ok(Response::new(response))
     }
 }
 
-use tonic::metadata::MetadataValue;
-use tonic::{Request, Status};
-
 fn check_auth(req: Request<()>) -> Result<Request<()>, Status> {
-    let token: MetadataValue<_> = "Bearer some-secret-token".parse().unwrap();
-
+    let token: MetadataValue<_> = "12345".parse().unwrap();
     match req.metadata().get("authorization") {
         Some(t) if token == t => Ok(req),
         _ => Err(Status::unauthenticated("No valid auth token")),
